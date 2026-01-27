@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      containers:
+      - name: gitlab
+        image: gitlab/gitlab-ce:latest
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 22
+          name: ssh
+        env:
+        - name: GITLAB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gitlab-credentials
+              key: root-password
+        - name: GITLAB_OMNIBUS_CONFIG
+          value: |
+            external_url 'http://gitlab.iot.com:8080'
+            prometheus_monitoring['enable'] = false
+            gitlab_rails['gitlab_shell_ssh_port'] = 2222
+            nginx['listen_port'] = 80
+            registry['enable'] = false
+            sidekiq['max_concurrency'] = 2
+            puma['worker_processes'] = 2
+            postgresql['shared_buffers'] = '128MB'
+        resources:
+          limits:
+            cpu: "1"
+            memory: "5Gi"
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+        startupProbe:
+          httpGet:
+            path: /-/health
+            port: 80
+          failureThreshold: 90
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /-/liveness
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /-/readiness
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        volumeMounts:
+        - name: gitlab-config
+          mountPath: /etc/gitlab
+        - name: gitlab-data
+          mountPath: /var/opt/gitlab
+        - name: gitlab-logs
+          mountPath: /var/log/gitlab
+      volumes:
+      - name: gitlab-config
+        persistentVolumeClaim:
+          claimName: gitlab-config-pvc
+      - name: gitlab-data
+        persistentVolumeClaim:
+          claimName: gitlab-data-pvc
+      - name: gitlab-logs
+        persistentVolumeClaim:
+          claimName: gitlab-logs-pvc

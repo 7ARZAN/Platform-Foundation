@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bonus-project
+  namespace: argocd
+spec:
+  description: Project for bonus part using local GitLab
+  sourceRepos:
+  - '*'
+  destinations:
+  - namespace: dev
+    server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
