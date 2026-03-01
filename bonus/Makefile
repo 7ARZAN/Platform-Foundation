@@ -4,52 +4,45 @@ BLUE = \033[0;34m
 GREEN = \033[0;32m
 RED = \033[0;31m
 RESET = \033[0m
-KUBECONFIG = $(shell pwd)/kubeconfig.yml
 
-.PHONY: all up down clean status logs credentials wait
+.PHONY: all up down clean rebuild help status provision
 
 all: up
 
-up:
-	@echo "$(GREEN)Starting Vagrant VM (No Docker Platform)...$(RESET)"
-	vagrant up
-	@echo "$(GREEN)Retrieving Kubeconfig...$(RESET)"
-	@vagrant ssh -c "sudo cat /etc/rancher/k3s/k3s.yaml" > kubeconfig.yml
-	@# Replace default localhost/127.0.0.1 with the private IP for reliable connection from host
-	@sed -i '' 's/127.0.0.1/192.168.56.120/g' kubeconfig.yml	
-	@echo "$(GREEN)Deploying GitLab for $(NAME)...$(RESET)"
-	export KUBECONFIG=$(KUBECONFIG); kubectl apply -f manifests/gitlab/namespace.yml
-	@echo "$(GREEN)Deploying GitLab Resources...$(RESET)"
-	@export KUBECONFIG=$(KUBECONFIG); \
-	if ! kubectl get secret gitlab-credentials -n gitlab >/dev/null 2>&1; then \
-		PASS=$$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24); \
-		kubectl create secret generic gitlab-credentials -n gitlab --from-literal=root-password="$$PASS"; \
-	fi
-	export KUBECONFIG=$(KUBECONFIG); kubectl apply -f manifests/gitlab/
-	@echo "$(BLUE)Waiting for GitLab to be ready... (Take a coffee, this pulls a large image)$(RESET)"
-	@# Wait for pod creation to be acknowledged
-	@sleep 5
-	export KUBECONFIG=$(KUBECONFIG); kubectl wait --for=condition=ready pod -l app=gitlab -n gitlab --timeout=900s
-	@echo "$(GREEN)Running Setup Script (Project Setup, Token Gen, Git Push)...$(RESET)"
-	export KUBECONFIG=$(KUBECONFIG); bash scripts/setup_bonus.sh
+help:
+	@echo "$(BLUE)Available commands for $(NAME):$(RESET)"
+	@echo "  make provision - Install requirements (Docker, k3d, kubectl, argocd)"
+	@echo "  make up        - Create and provision cluster, gitlab, argocd"
+	@echo "  make down      - Stop the cluster"
+	@echo "  make clean     - Delete the cluster"
+	@echo "  make status    - Show cluster status"
+	@echo "  make rebuild   - Rebuild everything"
+
+provision:
+	@echo "$(GREEN)Installing requirements for $(NAME)...$(RESET)"
+	bash ../p3/scripts/provision.sh
+
+up: provision
+	@echo "$(GREEN)Initializing K3d cluster for $(NAME)...$(RESET)"
+	bash ../p3/scripts/cluster.sh
+	bash ../p3/scripts/argocd.sh
+	@echo "$(GREEN)Deploying local Gitlab CE (this will take time)...$(RESET)"
+	bash scripts/setup_gitlab.sh
+	@echo "$(GREEN)Setting up App via Gitlab and ArgoCD...$(RESET)"
+	bash scripts/setup_app.sh
+	bash ../p3/scripts/verify.sh
 
 down:
-	@echo "$(RED)Destroying Bonus Infrastructure...$(RESET)"
-	vagrant destroy -f
-	rm -f kubeconfig.yml
+	@echo "$(BLUE)Stopping K3d cluster...$(RESET)"
+	k3d cluster stop $(CLUSTER_NAME) || true
 
 status:
-	@echo "$(BLUE)GitLab Pods:$(RESET)"
-	export KUBECONFIG=$(KUBECONFIG); kubectl get pods -n gitlab
-	@echo "$(BLUE)ArgoCD Pods:$(RESET)"
-	export KUBECONFIG=$(KUBECONFIG); kubectl get pods -n argocd
+	@k3d cluster list $(CLUSTER_NAME) || true
+	@kubectl get nodes -o wide || true
+	@kubectl get pods -A || true
 
-logs:
-	export KUBECONFIG=$(KUBECONFIG); kubectl logs -n gitlab -l app=gitlab -f
+clean:
+	@echo "$(RED)Deleting K3d cluster...$(RESET)"
+	k3d cluster delete $(CLUSTER_NAME) || true
 
-credentials:
-	@echo "$(GREEN)GitLab Root User: root$(RESET)"
-	@echo "$(GREEN)GitLab Root Password:$(RESET)"
-	@export KUBECONFIG=$(KUBECONFIG); kubectl get secret gitlab-credentials -n gitlab -o jsonpath='{.data.root-password}' | base64 -d && echo ""
-	@echo "$(GREEN)ArgoCD Admin Password:$(RESET)"
-	@export KUBECONFIG=$(KUBECONFIG); kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo ""
+rebuild: clean all

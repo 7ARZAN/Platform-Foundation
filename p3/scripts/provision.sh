@@ -45,7 +45,11 @@ fi
 
 if ! command -v argocd >/dev/null; then
     ARGO_VERSION="v3.2.3"
-    curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGO_VERSION}/argocd-linux-amd64"
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
+    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi
+    curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGO_VERSION}/argocd-${OS}-${ARCH}"
     
     sudo install -m 0755 argocd /usr/local/bin/argocd
     rm argocd
