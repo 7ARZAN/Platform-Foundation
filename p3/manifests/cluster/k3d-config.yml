@@ -1,0 +1,9 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: iot
+servers: 1
+ports:
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
