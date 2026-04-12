@@ -28,12 +28,12 @@ up: provision
 	bash ../p3/scripts/argocd.sh
 	@echo "$(GREEN)Deploying local Gitea CE (this will take time) ...$(RESET)"
 	bash scripts/setup_gitea.sh
-	@echo "$(GREEN)Setting up App via Gitlab and ArgoCD...$(RESET)"
+	@echo "$(GREEN)Setting up App via Gitlab and ArgoCD ...$(RESET)"
 	bash scripts/setup_app.sh
 	bash ../p3/scripts/verify.sh
 
 down:
-	@echo "$(BLUE)Stopping K3d cluster...$(RESET)"
+	@echo "$(BLUE)Stopping K3d cluster ...$(RESET)"
 	k3d cluster stop $(CLUSTER_NAME) || true
 
 status:
@@ -42,7 +42,7 @@ status:
 	@kubectl get pods -A || true
 
 clean:
-	@echo "$(RED)Deleting K3d cluster...$(RESET)"
+	@echo "$(RED)Deleting K3d cluster ...$(RESET)"
 	k3d cluster delete $(CLUSTER_NAME) || true
 
 rebuild: clean all
