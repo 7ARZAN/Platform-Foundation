@@ -2,7 +2,6 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Install a binary only if missing
 ensure() {
   local cmd=$1; shift
   command -v "${cmd}" &>/dev/null && { log "${cmd} already installed"; return; }

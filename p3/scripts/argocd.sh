@@ -9,7 +9,6 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd --server-side --force-conflicts \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl -n argocd rollout status deploy/argocd-server --timeout=180s
-
 kubectl -n argocd get deploy argocd-server \
   -o jsonpath='{.spec.template.spec.containers[0].args}' \
   | grep -q "\-\-insecure" || {
