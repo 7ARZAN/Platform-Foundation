@@ -21,7 +21,7 @@ help:
 up:
 	@echo "$(GREEN)Starting VMs for $(NAME)...$(RESET)"
 	$(VAGRANT) up
-	$(VAGRANT) up provision elakhfifS
+	$(VAGRANT) provision elakhfifS
 
 halt:
 	@echo "$(BLUE)Shutting down VMs for $(NAME)...$(RESET)"

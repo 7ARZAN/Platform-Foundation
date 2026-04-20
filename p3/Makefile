@@ -20,18 +20,18 @@ help:
 
 provision:
 	@echo "$(GREEN)Installing requirements for $(NAME)...$(RESET)"
-	bash scripts/provision.sh
+	@bash scripts/provision.sh
 
 up: provision
 	@echo "$(GREEN)Initializing K3d cluster for $(NAME)...$(RESET)"
-	bash scripts/cluster.sh
-	bash scripts/argocd.sh
-	bash scripts/setup_app.sh
-	bash scripts/verify.sh
+	@bash scripts/cluster.sh
+	@bash scripts/argocd.sh
+	@bash scripts/setup_app.sh
+	@bash scripts/verify.sh
 
 down:
 	@echo "$(BLUE)Stopping K3d cluster...$(RESET)"
-	k3d cluster stop $(CLUSTER_NAME) || true
+	@k3d cluster stop $(CLUSTER_NAME) || true
 
 status:
 	@k3d cluster list $(CLUSTER_NAME)
@@ -39,6 +39,7 @@ status:
 
 clean:
 	@echo "$(RED)Deleting K3d cluster...$(RESET)"
-	k3d cluster delete $(CLUSTER_NAME) || true
+	@k3d cluster delete $(CLUSTER_NAME) || true
+	@docker system prune -a
 
 rebuild: clean all
