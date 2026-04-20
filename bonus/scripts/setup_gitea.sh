@@ -27,20 +27,19 @@ pf_start "${NS}" gitea 3000:3000
 sleep 3
 poll_api "http://localhost:3000/api/v1/version" 60 5
 
-if curl -sf "http://localhost:3000/api/v1/user" \
-     -u "${GT_USER}:${GT_PASS}" -o /dev/null; then
-  log "Admin '${GT_USER}' confirmed"
+if curl -sf "http://localhost:3000/api/v1/user" -u "${GT_USER}:${GT_PASS}" -o /dev/null; then
+	log "Admin '${GT_USER}' confirmed"
 else
-  log "Bootstrapping admin via CLI..."
-  pod=$(kubectl get pod -n "${NS}" -l app=gitea -o jsonpath='{.items[0].metadata.name}')
-  kubectl exec -n "${NS}" "${pod}" -- \
-    /bin/sh -c "gitea admin user create --admin \
-      --username '${GT_USER}' \
-      --password '${GT_PASS}' \
-      --email admin@gitea.local \
-      --must-change-password=false" 2>&1 \
-    | grep -qiE 'created|already exists' || err "Admin bootstrap failed"
-  log "Admin '${GT_USER}' created"
+	log "Bootstrapping admin via CLI..."
+	pod=$(kubectl get pod -n "${NS}" -l app=gitea -o jsonpath='{.items[0].metadata.name}')
+	result=$(kubectl exec -n "${NS}" "${pod}" -- \
+		su git -s /bin/sh -c "gitea admin user create --admin \
+		--username '${GT_USER}' --password '${GT_PASS}' \
+		--email admin@gitea.local --must-change-password=false" 2>&1 || true)
+	echo "Bootstrap output: ${result}"
+	echo "${result}" | grep -qiE 'created|already exists' || err "Admin bootstrap failed"
+	log "Admin '${GT_USER}' created"
+
 fi
 
 log "Gitea ready at http://localhost:3000"
