@@ -7,6 +7,8 @@ log()  { echo -e "${GREEN}[OK]${RESET} $1"; }
 warn() { echo -e "${YELLOW}[WAIT]${RESET} $1"; }
 err()  { echo -e "${RED}[ERR]${RESET} $1" >&2; exit 1; }
 
+PF_PIDS=()
+
 pf_start() {
   local ns=$1 svc=$2 ports=$3
   pkill -f "port-forward.*${ports%%:*}" 2>/dev/null || true
@@ -14,16 +16,19 @@ pf_start() {
     kubectl port-forward "svc/${svc}" "${ports}" -n "${ns}" --address 0.0.0.0 2>/dev/null
     sleep 2
   done &
+  PF_PIDS+=($!)
+}
+
+pf_cleanup() {
+    [[ ${#PF_PIDS[@]} -gt 0 ]] && kill "${PF_PIDS[@]}" 2>/dev/null || true;
 }
 
 poll_api() {
-  local url=$1 max=${2:-60} interval=${3:-5} count=0 code
-  warn "Polling ${url}.."
+  local url=$1 max=${2:-60} interval=${3:-5} count=0
+  warn "Polling ${url} ..."
   until [[ $(curl -s -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null) == "200" ]]; do
-    (( count++ ));
-    (( count > max )) && err "Timeout waiting for: ${url}"
-    warn "Not ready yet (${count}/${max})..";
-    sleep "${interval}"
+    (( count++ )); (( count > max )) && err "Timeout waiting for ${url}"
+    warn "Not ready yet (${count}/${max}) ..."; sleep "${interval}"
   done
   log "API ready: ${url}"
 }
