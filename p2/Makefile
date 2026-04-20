@@ -36,5 +36,6 @@ clean:
 fclean: clean
 	@echo "$(BLUE)Removing .vagrant directory...$(RESET)"
 	rm -rf .vagrant
+	rm -rf conf
 
 rebuild: fclean all

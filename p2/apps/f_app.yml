@@ -25,35 +25,6 @@ status: {}
 apiVersion: v1
 kind: Service
 metadata:
-  creationTimestamp: "2025-12-24T07:58:54Z"
-  labels:
-    app: app1
-  name: app1
-  namespace: default
-  resourceVersion: "2549"
-  uid: e9befa53-2f06-4afe-8557-f5cdaad417e3
-spec:
-  clusterIP: 10.43.152.40
-  clusterIPs:
-  - 10.43.152.40
-  internalTrafficPolicy: Cluster
-  ipFamilies:
-  - IPv4
-  ipFamilyPolicy: SingleStack
-  ports:
-  - port: 5678
-    protocol: TCP
-    targetPort: 5678
-  selector:
-    app: app1
-  sessionAffinity: None
-  type: ClusterIP
-status:
-  loadBalancer: {}
----
-apiVersion: v1
-kind: Service
-metadata:
   creationTimestamp: null
   labels:
     app: app1

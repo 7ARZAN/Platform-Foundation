@@ -7,7 +7,7 @@ readonly USERS=("root" "vagrant")
 log(){ echo -e "\033[0;34m[SSH]\033[0m $1"; }
 ok(){ echo -e "\033[0;34m[OK]\033[0m $1"; }
 
-log "Configuring SSH cluster trust on $(hostname) ..."
+log "Configuring SSH cluster trust on $(hostname).."
 
 sudo mkdir -p "$SHARED_KEYS"
 sudo chmod 777 "$SHARED_KEYS"
@@ -18,11 +18,6 @@ fi
 
 sudo cp "/home/vagrant/.ssh/id_ed25519.pub" "$SHARED_KEYS/$(hostname).pub"
 sudo chmod 644 "$SHARED_KEYS/$(hostname).pub"
-
-if [[ "$(hostname)" == *S ]]; then
-    log "Waiting for worker public key to appear ..."
-    timeout 60 bash -c "until ls $SHARED_KEYS/*SW.pub >/dev/null 2>&1; do sleep 2; done" || log "Wait timed out"
-fi
 
 for username in "${USERS[@]}"; do
     HOME_DIR=$(getent passwd "$username" | cut -d: -f6)
@@ -39,17 +34,6 @@ for username in "${USERS[@]}"; do
     sudo chown -R "$username:$username" "$SSH_DIR"
     sudo chmod 700 "$SSH_DIR"
     sudo chmod 600 "$AUTH_KEYS"
-
-    cat <<EOF | sudo tee "$SSH_DIR/config" > /dev/null
-    Host 192.168.56.*
-    StrictHostKeyChecking accept-new
-    IdentitiesOnly yes
-    IdentityFile $HOME_DIR/.ssh/id_ed25519
-    LogLevel ERROR
-EOF
-
-    sudo chown "$username:$username" "$SSH_DIR/config"
-    sudo chmod 600 "$SSH_DIR/config"
 done
 
 ok "“SSH access is set up both ways for root and vagrant.”"

@@ -1,24 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GREEN="\033[0;32m"; YELLOW="\033[0;33m"; NC="\033[0m"
-log(){  echo -e "${GREEN}✅ $1${NC}"; }
-warn(){ echo -e "${YELLOW}⚠️  $1${NC}"; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib.sh"
 
-REPO_URL="https://github.com/7ARZAN/Platform-Foundation.git"
-APP_NAME="wil42-playground"
-MANIFESTS="$(dirname "$0")/../manifests/argocd/app.yml"
+readonly REPO="https://github.com/7ARZAN/Platform-Foundation.git"
+readonly APP="wil42-playground"
+readonly MANIFEST="${SCRIPT_DIR}/../manifests/argocd/app.yml"
 
-if argocd repo list | grep -q "$REPO_URL"; then
-  warn "Repo already registered — skipping repo add"
-else
-  argocd repo add "$REPO_URL"
-  log "Repo registered: $REPO_URL"
-fi
+argocd repo list 2>/dev/null | grep -q "${REPO}" || { argocd repo add "${REPO}"; log "Repo registered"; }
 
-kubectl apply -f "$MANIFESTS"
+kubectl apply -f "${MANIFEST}"
+argocd app sync "${APP}" --force --prune
+argocd app wait "${APP}" --health --timeout=120
 
-argocd app wait "$APP_NAME" --timeout 30 2>/dev/null || true
-argocd app sync "$APP_NAME" --force --prune
-
-log "Application '${APP_NAME}' registered and synced"
+log "App '${APP}' live"

@@ -2,75 +2,40 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MANIFESTS_DIR="${SCRIPT_DIR}/../manifests/gitea"
+source "${SCRIPT_DIR}/../../p3/scripts/lib.sh"
 
-GT_USER="gitadmin"
-GT_PASS="Gitea_Passw0rd1337"
-NS="gitea"
+readonly NS="gitea"
+readonly GT_PASS="${GITEA_ADMIN_PASSWORD:-Gitea_Passw0rd1337}"
+readonly MANIFESTS="${SCRIPT_DIR}/../manifests/gitea"
 
-log()  { echo -e "\033[0;32m[OK]\033[0m $1"; }
-err()  { echo -e "\n\033[0;31m[ERROR]\033[0m $1"; exit 1; }
+trap pf_cleanup EXIT
 
-kubectl create ns "$NS" --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic gitea-pass -n "$NS" \
-  --from-literal=password="$GT_PASS" \
+kubectl create ns "${NS}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic gitea-pass -n "${NS}" \
+  --from-literal=password="${GT_PASS}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-log "Applying Gitea manifests..."
-kubectl apply -f "$MANIFESTS_DIR/pvc.yml"
-kubectl apply -f "$MANIFESTS_DIR/deployment.yml"
-kubectl apply -f "$MANIFESTS_DIR/service.yml"
+kubectl apply -f "${MANIFESTS}/pvc.yml" \
+              -f "${MANIFESTS}/deployment.yml" \
+              -f "${MANIFESTS}/service.yml"
 
-log "Waiting for Pod to be Ready..."
-kubectl wait --for=condition=Ready pod -l app=gitea -n "$NS" --timeout=300s
+log "Waiting for Gitea to be ready..."
+kubectl wait --for=condition=Ready pod -l app=gitea -n "${NS}" --timeout=300s
 
-pkill -f "port-forward.*3000" 2>/dev/null || true
-(while true; do
-  kubectl port-forward svc/gitea 3000:3000 -n "$NS" --address 0.0.0.0 2>/dev/null
-  sleep 1
-done) &
-PF_PID=$!
-trap 'kill $PF_PID 2>/dev/null || true' EXIT
+pf_start "${NS}" gitea 3000:3000
 sleep 3
+poll_api "http://localhost:3000/api/v1/version" 60 5
 
-log "Waiting for Gitea API to be ready..."
-MAX=60; COUNT=0
-while true; do
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3000/api/v1/version" || echo "000")
-  [ "$CODE" = "200" ] && break
-  [ "$COUNT" -ge "$MAX" ] && err "Timeout waiting for Gitea API."
-  echo -ne "\033[0;33m[WAIT]\033[0m HTTP $CODE | Elapsed: $((COUNT * 5))s\r"
-  COUNT=$((COUNT + 1)); sleep 5
-done
-echo ""
-
-AUTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
-  "http://localhost:3000/api/v1/user" \
-  -u "${GT_USER}:${GT_PASS}" || echo "000")
-
-if [ "$AUTH_CODE" = "200" ]; then
-  log "Admin user '$GT_USER' already exists (bootstrapped by GITEA_ADMIN_*)."
+if curl -sf "http://localhost:3000/api/v1/user" -u "gitadmin:${GT_PASS}" -o /dev/null; then
+  log "Admin 'gitadmin' confirmed"
 else
-  log "Bootstrapping admin user via CLI (GITEA_ADMIN_* did not fire)..."
-  GITEA_POD=$(kubectl get pod -n "$NS" -l app=gitea -o jsonpath='{.items[0].metadata.name}')
-  set +e
-  RESULT=$(kubectl exec -i -n "$NS" "$GITEA_POD" -- \
-    su git -s /bin/sh 2>&1 << ADMINCMD
-gitea admin user create \
-  --admin \
-  --username "${GT_USER}" \
-  --password "${GT_PASS}" \
-  --email "admin@gitea.local" \
-  --must-change-password=false
-ADMINCMD
-  )
-  set -e
-  echo "$RESULT"
-  if echo "$RESULT" | grep -qiE 'created|already exists'; then
-    log "Admin user '$GT_USER' is ready."
-  else
-    err "CLI admin setup failed. Output: $RESULT"
-  fi
+  pod=$(kubectl get pod -n "${NS}" -l app=gitea -o jsonpath='{.items[0].metadata.name}')
+  kubectl exec -n "${NS}" "${pod}" -- \
+    gitea admin user create --admin \
+      --username gitadmin --password "${GT_PASS}" \
+      --email admin@gitea.local --must-change-password=false \
+    || err "Admin bootstrap failed"
+  log "Admin created via CLI"
 fi
 
-log "Gitea is up."
+log "Gitea ready at http://localhost:3000"

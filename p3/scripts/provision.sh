@@ -1,61 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-GREEN="\033[0;32m"
-NC="\033[0m"
+# Install a binary only if missing
+ensure() {
+  local cmd=$1; shift
+  command -v "${cmd}" &>/dev/null && { log "${cmd} already installed"; return; }
+  "$@" && log "${cmd} installed"
+}
 
-log(){ echo -e "${GREEN}✅ $1${NC}"; }
+ensure docker  bash -c "curl -fsSL https://get.docker.com | sh -s -- --quiet && sudo usermod -aG docker ${USER}"
+ensure k3d     bash -c "curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash"
+ensure kubectl bash -c "
+  VER=\$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+  curl -fsSLo /tmp/kubectl https://dl.k8s.io/release/\${VER}/bin/linux/amd64/kubectl
+  sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl && rm /tmp/kubectl"
+ensure argocd  bash -c "
+  curl -fsSLo /tmp/argocd https://github.com/argoproj/argo-cd/releases/download/v3.2.3/argocd-linux-amd64
+  sudo install -m 0755 /tmp/argocd /usr/local/bin/argocd && rm /tmp/argocd"
 
-if ! command -v docker >/dev/null; then
-    sudo apt update -y
-    curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker "$USER"
-    log "docker installed!"
-else
-    log "docker already present!"
-fi
+log "Provision complete"
 
-if ! command -v k3d >/dev/null; then
-    curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-    log "k3d installed!"
-else
-    log "k3d already present!"
-fi
-
-if ! command -v kubectl >/dev/null; then
-    KUBECTL_VERSION="$(curl -sL https://dl.k8s.io/release/stable.txt)"
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-    curl -LO "https://dl.k8s.io/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
-
-    EXPECTED=$(cat kubectl.sha256)
-    ACTUAL=$(sha256sum kubectl | awk '{print $1}')
-    if [ "$EXPECTED" = "$ACTUAL" ]; then
-	log "kubectl checksum OK"
-    else
-	echo "kubectl checksum mismatch"
-	exit 1
-    fi
-
-    sudo install -m 0755 kubectl /usr/local/bin/kubectl
-    rm kubectl kubectl.sha256
-    log "kubectl ${KUBECTL_VERSION} installed!"
-else
-    log "kubectl already present!"
-fi
-
-if ! command -v argocd >/dev/null; then
-    ARGO_VERSION="v3.2.3"
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
-    if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
-    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi
-    curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGO_VERSION}/argocd-${OS}-${ARCH}"
-    
-    sudo install -m 0755 argocd /usr/local/bin/argocd
-    rm argocd
-    log "Argo-CD ! command line Interface ${ARGO_VERSION} installed!"
-else
-    log "Argo-CD already present!"
-fi
-
-log "Provision Script Complete!"

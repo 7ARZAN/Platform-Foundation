@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GREEN="\033[0;32m"; NC="\033[0m"
-log(){ echo -e "${GREEN}✅ $1${NC}"; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-cd "$(dirname "$0")/../manifests/cluster"
+MANIFESTS="${SCRIPT_DIR}/../manifests"
 
-if ! k3d cluster list | grep -q "iot"; then
-    k3d cluster create --config k3d-config.yml
-    log "Cluster 'iot' created!"
+if k3d cluster list 2>/dev/null | grep -q "iot"; then
+  log "Cluster 'iot' already present"
 else
-    log "Cluster 'iot' already present!"
+  k3d cluster create --config "${MANIFESTS}/cluster/k3d-config.yml"
+  log "Cluster 'iot' created"
 fi
 
 kubectl config use-context k3d-iot
+kubectl apply -f "${MANIFESTS}/argocd/namespace.yml"
+kubectl apply -f "${MANIFESTS}/dev/namespace.yml"
 
-kubectl apply -f ../argocd/namespace.yml
-kubectl apply -f ../dev/namespace.yml
-
-log "Cluster Ready!"
+log "Cluster ready"

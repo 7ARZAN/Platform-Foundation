@@ -23,11 +23,11 @@ TOKEN=$(sudo cat "$TOKEN_FILE" | tr -d '[:space:]')
 
 if ! command -v k3s &>/dev/null; then
     log "Running K3s installer ..."
-    curl -sfL https://get.k3s.io | K3S_URL="https://$SERVER_IP:6443" K3S_TOKEN="$TOKEN" \
-	INSTALL_K3S_EXEC="agent \
-	--node-name=$NODE \
-	--node-ip=$AGENT_IP \
-	--flannel-iface=$IFACE" sh -
+    export K3S_URL="https://$SERVER_IP:6443"
+    export K3S_TOKEN="$TOKEN"
+    export INSTALL_K3S_EXEC="agent --node-name=$NODE --node-ip=$AGENT_IP --flannel-iface=$IFACE"
+    curl -sfL https://get.k3s.io | sh -
 fi
 
+echo 'export KUBECONFIG=/vagrant/conf/kubeconfig.yml' >> /home/vagrant/.bashrc
 ok "K3s Agent is active. Baguette!"

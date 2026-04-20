@@ -1,48 +1,57 @@
-NAME = bonus
+NAME         = bonus
 CLUSTER_NAME = iot
-BLUE = \033[0;34m
+
+BLUE  = \033[0;34m
 GREEN = \033[0;32m
-RED = \033[0;31m
+RED   = \033[0;31m
 RESET = \033[0m
 
-.PHONY: all up down clean rebuild help status provision
+P3_SCRIPTS = ../p3/scripts
+SCRIPTS    = scripts
+
+.PHONY: all up down clean rebuild status logs help
 
 all: up
 
 help:
-	@echo "$(BLUE)Available commands for $(NAME):$(RESET)"
-	@echo "  make provision - Install requirements (Docker, k3d, kubectl, argocd)"
-	@echo "  make up        - Create and provision cluster, gitlab, argocd"
-	@echo "  make down      - Stop the cluster"
-	@echo "  make clean     - Delete the cluster"
-	@echo "  make status    - Show cluster status"
-	@echo "  make rebuild   - Rebuild everything"
+	@echo "$(BLUE)$(NAME)$(RESET)"
+	@echo "  make up       — full stack: cluster + Gitea + ArgoCD + app"
+	@echo "  make down     — stop the cluster"
+	@echo "  make clean    — delete the cluster"
+	@echo "  make rebuild  — clean + up"
+	@echo "  make status   — pods / nodes overview"
+	@echo "  make logs     — tail all pod logs"
 
-provision:
-	@echo "$(GREEN)Installing requirements for $(NAME)...$(RESET)"
-	bash ../p3/scripts/provision.sh
+.provision-done:
+	bash $(P3_SCRIPTS)/provision.sh
+	@touch .provision-done
+
+provision: .provision-done
 
 up: provision
-	@echo "$(GREEN)Initializing K3d cluster for $(NAME)...$(RESET)"
-	bash ../p3/scripts/cluster.sh
-	bash ../p3/scripts/argocd.sh
-	@echo "$(GREEN)Deploying local Gitea CE (this will take time) ...$(RESET)"
-	bash scripts/setup_gitea.sh
-	@echo "$(GREEN)Setting up App via Gitlab and ArgoCD ...$(RESET)"
-	bash scripts/setup_app.sh
-	bash ../p3/scripts/verify.sh
+	@echo "$(GREEN)[1/4] Cluster$(RESET)"
+	@bash $(P3_SCRIPTS)/cluster.sh
+	@echo "$(GREEN)[2/4] ArgoCD$(RESET)"
+	@bash $(P3_SCRIPTS)/argocd.sh
+	@echo "$(GREEN)[3/4] Gitea$(RESET)"
+	@bash $(SCRIPTS)/setup_gitea.sh
+	@echo "$(GREEN)[4/4] App$(RESET)"
+	@bash $(SCRIPTS)/setup_app.sh
 
 down:
-	@echo "$(BLUE)Stopping K3d cluster ...$(RESET)"
 	k3d cluster stop $(CLUSTER_NAME) || true
+
+clean:
+	@echo "$(RED)Deleting $(CLUSTER_NAME)...$(RESET)"
+	k3d cluster delete $(CLUSTER_NAME) || true
+	@rm -f .provision-done
+
+rebuild: clean up
 
 status:
 	@k3d cluster list $(CLUSTER_NAME) || true
 	@kubectl get nodes -o wide || true
 	@kubectl get pods -A || true
 
-clean:
-	@echo "$(RED)Deleting K3d cluster ...$(RESET)"
-	k3d cluster delete $(CLUSTER_NAME) || true
-
-rebuild: clean all
+logs:
+	@kubectl logs -n dev -l app=wil42-playground --tail=50 -f || true
